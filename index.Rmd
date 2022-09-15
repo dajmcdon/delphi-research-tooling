@@ -114,10 +114,21 @@ background-position: top
 
 * `{epipredict}` &mdash; R package for creating predictive models using the `{epiprocess}` framework
 
+<br><br>
+
+--
+
+ ---
+
+.pull-left-wide[
 
 ### Credit to: 
 
 Nat, Logan, Sam, Dmitry, Ryan, Ken, Chloe, Maggie, Rachel, (others I'm missing)
+]
+
+
+<iframe src="https://giphy.com/embed/LSdUYWha3nF4Q2Lh2z" width="100" height="200" frameBorder="0" class="pull-right-narrow"></iframe>
 
 ---
 
