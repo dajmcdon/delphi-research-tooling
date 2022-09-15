@@ -1,7 +1,7 @@
 ---
-title: "Talk title"
+title: "Delphi tooling overview"
 author: "Daniel J. McDonald"
-date: "xx Month yyyy"
+date: "15 September 2022"
 output:
   xaringan::moon_reader:
     css: [src/xaringan-themer.css, src/slides-style.css]
@@ -33,12 +33,13 @@ knitr::opts_chunk$set(
   warning = FALSE,
   hiline = TRUE
 )
+theme_set(theme_bw(base_size = 14))
 ```
 
 ```{r xaringan-themer, include=FALSE, warning=FALSE}
 library(xaringanthemer)
-primary = "#002145"
-secondary = "#6495ed"
+secondary = "#e98a15"
+primary = "#2c365e"
 tertiary = "#ffa319"
 fourth_color = "#DB0B5B"
 
@@ -62,12 +63,26 @@ style_duo_accent(
 # theme_set(theme_xaringan())
 ```
 
+```{r cover, include=FALSE, fig.width=16, fig.height=4}
+epipredict::case_death_rate_subset %>%
+  filter(case_rate > 1) %>%
+  ggplot(aes(time_value, case_rate, colour = geo_value)) +
+  geom_line() +
+  theme_void() +
+  scale_color_viridis_d(option = "C") +
+  scale_x_continuous(expand = expansion()) +
+  scale_y_log10(expand = expansion(), limits = c(1, NA)) +
+  theme(legend.position = "none",
+        plot.background = element_rect(fill = primary))
+
+```
+
 layout: true
 
-<div class="my-footer"><span><a href="https://dajmcdon.github.io/talktemplate" style="color:white">dajmcdon.github.io/talk-template</a></span></div> 
+<div class="my-footer"><span><a href="https://dajmcdon.github.io/delphi-research-tooling" style="color:white">dajmcdon.github.io/delphi-research-tooling</a></span></div> 
 
 ---
-background-image: url("gfx/cover.svg")
+background-image: url("gfx/cover-1.svg")
 background-size: contain
 background-position: top
 
@@ -75,38 +90,238 @@ background-position: top
 
 
 
-.center[# Talk Title]
+.center[#The epiprocess and epipredict R packages]
+.center[##Recent tooling work]
 
 
 .pull-left[
 ###Daniel J. McDonald
-###University of British Columbia
-####CMStatistics &mdash; xx Month yyyy
+#### 15 September 2022
+#### Delphi Research Meeting
 ]
 
-<!--
 
-Optional code to include QR links
+---
 
-.pull-right[.center[.middle[
-<table>
-<tr>
-<td>![:scale 60%](gfx/qr-paper.png)</td>
-<td>![:scale 90%](gfx/qr-slides.png)</td>
-<td>![:scale 90%](gfx/qr-mywww.png)</td>
-</tr>
-<tr>
-<td>`r fa("file-alt")` Paper</td>
-<td>`r fa("chalkboard-teacher")` Slides</td>
-<td>`r fa("at")` My WWW</td>
-</tr>
-</table>
-]]]
+## Delphi's new epiverse
 
-???
+* `{epidatr}` &mdash; R (and python) packages for pulling data from the Delphi API
+    - Subsumes the `covidcast` package.
+    
+    - Access to all the Delphi signals.
+
+* `{epiprocess}` &mdash; R package for processing epi data
+
+* `{epipredict}` &mdash; R package for creating predictive models using the `{epiprocess}` framework
 
 
--->
+### Credit to: 
+
+Nat, Logan, Sam, Dmitry, Ryan, Ken, Chloe, Maggie, Rachel, (others I'm missing)
+
+---
+
+## `{epiprocess}`
+
+<https://cmu-delphi.github.io/epiprocess/>
+
+1. Data types
+
+    * `epi_df` &mdash; basically a `data.frame` but with important meta information
+        1. `as_of` tag to denote the data vintage
+        2. time type
+        3. geo type
+        4. additional keys (e.g., age, gender, race)
+    * `epi_archive` &mdash; a collection of `epi_df`s of different vintages
+        * But stored so as to eliminate redundancies
+        * Allows for important operations (filling, merging, snapshots,  )
+        
+2. Fundamental functionality &mdash; the `slide()`
+
+    * Rolling correlations
+    * Moving averages
+    * outlier correction
+    * arbitrary functions
+    
+---
+
+## Example of `slide()`
+
+```{r epidatr-ex, include=FALSE}
+library(epidatr)
+library(epiprocess)
+library(dplyr)
+library(tidyr)
+x <- covidcast(
+  data_source = "jhu-csse",
+  signals = "confirmed_7dav_incidence_num",
+  time_type = "day",
+  geo_type = "state",
+  time_values = epirange(20210601, 20220901),
+  geo_values = "ga,pa") %>%
+  fetch_tbl() %>%
+  select(geo_value, time_value, cases = value) %>%
+  arrange(geo_value, time_value) %>%
+  as_epi_df()
+```
+
+```{r, echo=TRUE}
+x <- x %>%  # covid cases in 2 locations downloaded with `{epidatr}`
+  group_by(geo_value) %>% 
+  mutate(smooth_spline = growth_rate(time_value, cases, method = "smooth_spline"),
+         trend_filter = growth_rate(time_value, cases, method = "trend_filter"))
+```
+
+```{r, echo=FALSE}
+x %>%
+  select(geo_value, time_value, smooth_spline, trend_filter) %>%
+  pivot_longer(smooth_spline:trend_filter) %>%
+  ggplot(aes(x = time_value, y = value)) + 
+  geom_line(aes(col = name)) + 
+  scale_color_manual(values = c(3,6)) +
+  facet_wrap(~geo_value, scales = "free_y", ncol = 2) +
+  scale_x_date(minor_breaks = "month", date_labels = "%b %y") +
+  labs(x = "Date", y = "Growth rate", col = "Method") +
+  theme(legend.position = "bottom")
+```
+
+---
+
+## Examining an `epi_archive`
+
+```{r, echo=FALSE}
+x <- archive_cases_dv_subset
+x_latest <- epix_as_of(x, max_version = max(x$DT$version))
+self_max = max(x$DT$version)
+versions = seq(as.Date("2020-06-01"), self_max - 1, by = "1 month")
+snapshots <- map_dfr(versions, function(v) { 
+  epix_as_of(x, max_version = v) %>% mutate(version = v)}) %>%
+  bind_rows(x_latest %>% mutate(version = self_max)) %>%
+  mutate(latest = version == self_max) %>%
+  filter(geo_value %in% c("ca", "fl"))
+
+ggplot(snapshots %>% filter(!latest),
+            aes(x = time_value, y = percent_cli)) +  
+  geom_line(aes(color = factor(version))) + 
+  geom_vline(aes(color = factor(version), xintercept = version), lty = 2) +
+  facet_wrap(~ geo_value, scales = "free_y", nrow = 1) +
+  scale_x_date(minor_breaks = "month", date_labels = "%b %y") +
+  labs(x = "Date", y = "% of doctor's visits with CLI") + 
+  theme(legend.position = "none") +
+  geom_line(data = snapshots %>% filter(latest),
+               aes(x = time_value, y = percent_cli), 
+               inherit.aes = FALSE, color = "black")
+library(workflows)
+```
+
+* Easy to inspect revision behaviour
+* Can use it for pseudo-prospective forecasts
+* Compare to our procedure for the PNAS article &mdash; store every version as a `.csv` and load them individually
+
+---
+class: middle, center, inverse
+
+# `{epipredict}`
+
+<https://cmu-delphi.github.io/epipredict>
+
+---
+
+## Goals
+
+1.  A set of basic, easy-to-use forecasters that work out of the box.
+    You should be able to do a reasonably limited amount of
+    customization on them. 
+    -   Baseline flat-line forecaster
+    -   Autoregressive forecaster
+    -   Autoregressive classifier 
+    
+2.  A .secondary[framework] for creating custom forecasters out of modular
+    components. 
+    
+
+### Users
+
+.secondary[Basic.] Has data, calls forecaster with default arguments.
+
+.secondary[Intermediate.] Wants to examine changes to the arguments, take advantage of built in flexibility.
+
+.secondary[Advanced.] Wants to write their own forecasters. Maybe willing to build up from some components that we write.
+
+---
+
+## Basic autoregressive forecaster
+
+* Predict `deaths` 1-week ahead on 0, 7, 14 day lags of cases and deaths. 
+* Use `lm`, produce intervals with residual quantiles.
+
+```{r, echo = TRUE, warning=FALSE}
+library(epipredict)
+jhu <- case_death_rate_subset %>% filter(time_value > max(time_value) - 60)
+canned <- arx_forecaster(jhu, outcome = "death_rate", 
+                         predictors = c("case_rate", "death_rate"))
+canned$predictions
+```
+
+---
+
+```{r, echo = TRUE}
+minor_changes <- arx_forecaster(
+  jhu, outcome = "death_rate", predictors = c("case_rate", "death_rate"),
+  args_list = arx_args_list(
+    ahead = 14, lags = list(c(0:4, 7, 14), c(0, 7, 14)),
+    levels = c(0.05, 1:9/10, 0.95),
+    quantile_by_key = "geo_value"
+  )
+)
+minor_changes$predictions
+```
 
 
+---
 
+### Use random forests instead
+
+```{r, echo = TRUE}
+rf <- arx_forecaster(
+  jhu, outcome = "death_rate", predictors = c("case_rate", "death_rate"),
+  trainer = parsnip::rand_forest(mode = "regression"), # use ranger
+  args_list = arx_args_list(
+    ahead = 14, lags = list(c(0:4, 7, 14), c(0, 7, 14)),
+    levels = c(0.05, 1:9/10, 0.95),
+    quantile_by_key = "geo_value"
+  )
+)
+```
+
+
+### Or boosting
+
+```{r, echo=TRUE}
+xgb <- arx_forecaster(
+  jhu, outcome = "death_rate", predictors = c("case_rate", "death_rate"),
+  trainer = parsnip::boost_tree(mode = "regression", trees = 20), # use xgboost
+  args_list = arx_args_list(
+    ahead = 14, lags = list(c(0:4, 7, 14), c(0, 7, 14)),
+    levels = c(0.05, 1:9/10, 0.95),
+    quantile_by_key = "geo_value"
+  )
+) 
+```
+
+---
+
+## Examine the model
+
+```{r, echo=TRUE}
+lmobj <- extract_fit_engine(canned$epi_workflow)
+summary(lmobj)
+```
+
+---
+class: middle, center
+
+
+Switch to the vignettes:
+
+<https://cmu-delphi.github.io/epipredict>

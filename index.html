@@ -1,0 +1,433 @@
+<!DOCTYPE html>
+<html lang="" xml:lang="">
+  <head>
+    <title>Delphi tooling overview</title>
+    <meta charset="utf-8" />
+    <meta name="author" content="Daniel J. McDonald" />
+    <meta name="date" content="2022-09-15" />
+    <script src="index_files/header-attrs/header-attrs.js"></script>
+    <link rel="stylesheet" href="src/xaringan-themer.css" type="text/css" />
+    <link rel="stylesheet" href="src/slides-style.css" type="text/css" />
+  </head>
+  <body>
+    <textarea id="source">
+
+
+
+
+
+
+
+
+layout: true
+
+&lt;div class="my-footer"&gt;&lt;span&gt;&lt;a href="https://dajmcdon.github.io/delphi-research-tooling" style="color:white"&gt;dajmcdon.github.io/delphi-research-tooling&lt;/a&gt;&lt;/span&gt;&lt;/div&gt; 
+
+---
+background-image: url("gfx/cover-1.svg")
+background-size: contain
+background-position: top
+
+&lt;br/&gt;&lt;br/&gt;&lt;br/&gt;&lt;br/&gt;&lt;br/&gt;&lt;br/&gt;&lt;br/&gt;&lt;br/&gt;&lt;br/&gt;&lt;br/&gt;
+
+
+
+.center[#The epiprocess and epipredict R packages]
+.center[##Recent tooling work]
+
+
+.pull-left[
+###Daniel J. McDonald
+#### 15 September 2022
+#### Delphi Research Meeting
+]
+
+
+---
+
+## Delphi's new epiverse
+
+* `{epidatr}` &amp;mdash; R (and python) packages for pulling data from the Delphi API
+    - Subsumes the `covidcast` package.
+    
+    - Access to all the Delphi signals.
+
+* `{epiprocess}` &amp;mdash; R package for processing epi data
+
+* `{epipredict}` &amp;mdash; R package for creating predictive models using the `{epiprocess}` framework
+
+
+### Credit to: 
+
+Nat, Logan, Sam, Dmitry, Ryan, Ken, Chloe, Maggie, Rachel, (others I'm missing)
+
+---
+
+## `{epiprocess}`
+
+&lt;https://cmu-delphi.github.io/epiprocess/&gt;
+
+1. Data types
+
+    * `epi_df` &amp;mdash; basically a `data.frame` but with important meta information
+        1. `as_of` tag to denote the data vintage
+        2. time type
+        3. geo type
+        4. additional keys (e.g., age, gender, race)
+    * `epi_archive` &amp;mdash; a collection of `epi_df`s of different vintages
+        * But stored so as to eliminate redundancies
+        * Allows for important operations (filling, merging, snapshots,  )
+        
+2. Fundamental functionality &amp;mdash; the `slide()`
+
+    * Rolling correlations
+    * Moving averages
+    * outlier correction
+    * arbitrary functions
+    
+---
+
+## Example of `slide()`
+
+
+
+
+```r
+x &lt;- x %&gt;%  # covid cases in 2 locations downloaded with `{epidatr}`
+  group_by(geo_value) %&gt;% 
+  mutate(smooth_spline = growth_rate(time_value, cases, method = "smooth_spline"),
+         trend_filter = growth_rate(time_value, cases, method = "trend_filter"))
+```
+
+&lt;img src="gfx/unnamed-chunk-2-1.svg" width="100%" style="display: block; margin: auto;" /&gt;
+
+---
+
+## Examining an `epi_archive`
+
+&lt;img src="gfx/unnamed-chunk-3-1.svg" width="100%" style="display: block; margin: auto;" /&gt;
+
+* Easy to inspect revision behaviour
+* Can use it for pseudo-prospective forecasts
+* Compare to our procedure for the PNAS article &amp;mdash; store every version as a `.csv` and load them individually
+
+---
+class: middle, center, inverse
+
+# `{epipredict}`
+
+&lt;https://cmu-delphi.github.io/epipredict&gt;
+
+---
+
+## Goals
+
+1.  A set of basic, easy-to-use forecasters that work out of the box.
+    You should be able to do a reasonably limited amount of
+    customization on them. 
+    -   Baseline flat-line forecaster
+    -   Autoregressive forecaster
+    -   Autoregressive classifier 
+    
+2.  A .secondary[framework] for creating custom forecasters out of modular
+    components. 
+    
+
+### Users
+
+.secondary[Basic.] Has data, calls forecaster with default arguments.
+
+.secondary[Intermediate.] Wants to examine changes to the arguments, take advantage of built in flexibility.
+
+.secondary[Advanced.] Wants to write their own forecasters. Maybe willing to build up from some components that we write.
+
+---
+
+## Basic autoregressive forecaster
+
+* Predict `deaths` 1-week ahead on 0, 7, 14 day lags of cases and deaths. 
+* Use `lm`, produce intervals with residual quantiles.
+
+
+```r
+library(epipredict)
+jhu &lt;- case_death_rate_subset %&gt;% filter(time_value &gt; max(time_value) - 60)
+canned &lt;- arx_forecaster(jhu, outcome = "death_rate", 
+                         predictors = c("case_rate", "death_rate"))
+canned$predictions
+```
+
+```
+## An `epi_df` object, 56 x 6 with metadata:
+## * geo_type  = state
+## * time_type = day
+## * as_of     = 2022-05-31 12:08:25
+## 
+## # A tibble: 56 × 6
+##    geo_value time_value  .pred         .pred_distn forecast_date target_date
+##  * &lt;chr&gt;     &lt;date&gt;      &lt;dbl&gt;              &lt;dist&gt; &lt;date&gt;        &lt;date&gt;     
+##  1 ak        2021-12-31 0.397  [0.05, 0.95]&lt;q-rng&gt; 2021-12-31    2022-01-07 
+##  2 al        2021-12-31 0.262  [0.05, 0.95]&lt;q-rng&gt; 2021-12-31    2022-01-07 
+##  3 ar        2021-12-31 0.410  [0.05, 0.95]&lt;q-rng&gt; 2021-12-31    2022-01-07 
+##  4 as        2021-12-31 0.0983 [0.05, 0.95]&lt;q-rng&gt; 2021-12-31    2022-01-07 
+##  5 az        2021-12-31 0.610  [0.05, 0.95]&lt;q-rng&gt; 2021-12-31    2022-01-07 
+##  6 ca        2021-12-31 0.283  [0.05, 0.95]&lt;q-rng&gt; 2021-12-31    2022-01-07 
+##  7 co        2021-12-31 0.500  [0.05, 0.95]&lt;q-rng&gt; 2021-12-31    2022-01-07 
+##  8 ct        2021-12-31 0.518  [0.05, 0.95]&lt;q-rng&gt; 2021-12-31    2022-01-07 
+##  9 dc        2021-12-31 0.797  [0.05, 0.95]&lt;q-rng&gt; 2021-12-31    2022-01-07 
+## 10 de        2021-12-31 0.605  [0.05, 0.95]&lt;q-rng&gt; 2021-12-31    2022-01-07 
+## # … with 46 more rows
+```
+
+---
+
+
+```r
+minor_changes &lt;- arx_forecaster(
+  jhu, outcome = "death_rate", predictors = c("case_rate", "death_rate"),
+  args_list = arx_args_list(
+    ahead = 14, lags = list(c(0:4, 7, 14), c(0, 7, 14)),
+    levels = c(0.05, 1:9/10, 0.95),
+    quantile_by_key = "geo_value"
+  )
+)
+minor_changes$predictions
+```
+
+```
+## An `epi_df` object, 56 x 6 with metadata:
+## * geo_type  = state
+## * time_type = day
+## * as_of     = 2022-05-31 12:08:25
+## 
+## # A tibble: 56 × 6
+##    geo_value time_value  .pred         .pred_distn forecast_date target_date
+##  * &lt;chr&gt;     &lt;date&gt;      &lt;dbl&gt;              &lt;dist&gt; &lt;date&gt;        &lt;date&gt;     
+##  1 ak        2021-12-31 0.567  [0.05, 0.95]&lt;q-rng&gt; 2021-12-31    2022-01-14 
+##  2 al        2021-12-31 0.535  [0.05, 0.95]&lt;q-rng&gt; 2021-12-31    2022-01-14 
+##  3 ar        2021-12-31 0.637  [0.05, 0.95]&lt;q-rng&gt; 2021-12-31    2022-01-14 
+##  4 as        2021-12-31 0.0824 [0.05, 0.95]&lt;q-rng&gt; 2021-12-31    2022-01-14 
+##  5 az        2021-12-31 0.730  [0.05, 0.95]&lt;q-rng&gt; 2021-12-31    2022-01-14 
+##  6 ca        2021-12-31 0.528  [0.05, 0.95]&lt;q-rng&gt; 2021-12-31    2022-01-14 
+##  7 co        2021-12-31 0.791  [0.05, 0.95]&lt;q-rng&gt; 2021-12-31    2022-01-14 
+##  8 ct        2021-12-31 0.944  [0.05, 0.95]&lt;q-rng&gt; 2021-12-31    2022-01-14 
+##  9 dc        2021-12-31 1.91   [0.05, 0.95]&lt;q-rng&gt; 2021-12-31    2022-01-14 
+## 10 de        2021-12-31 0.932  [0.05, 0.95]&lt;q-rng&gt; 2021-12-31    2022-01-14 
+## # … with 46 more rows
+```
+
+
+---
+
+### Use random forests instead
+
+
+```r
+rf &lt;- arx_forecaster(
+  jhu, outcome = "death_rate", predictors = c("case_rate", "death_rate"),
+  trainer = parsnip::rand_forest(mode = "regression"), # use ranger
+  args_list = arx_args_list(
+    ahead = 14, lags = list(c(0:4, 7, 14), c(0, 7, 14)),
+    levels = c(0.05, 1:9/10, 0.95),
+    quantile_by_key = "geo_value"
+  )
+)
+```
+
+
+### Or boosting
+
+
+```r
+xgb &lt;- arx_forecaster(
+  jhu, outcome = "death_rate", predictors = c("case_rate", "death_rate"),
+  trainer = parsnip::boost_tree(mode = "regression", trees = 20), # use xgboost
+  args_list = arx_args_list(
+    ahead = 14, lags = list(c(0:4, 7, 14), c(0, 7, 14)),
+    levels = c(0.05, 1:9/10, 0.95),
+    quantile_by_key = "geo_value"
+  )
+) 
+```
+
+---
+
+## Examine the model
+
+
+```r
+lmobj &lt;- extract_fit_engine(canned$epi_workflow)
+summary(lmobj)
+```
+
+```
+## 
+## Call:
+## stats::lm(formula = ..y ~ ., data = data)
+## 
+## Residuals:
+##     Min      1Q  Median      3Q     Max 
+## -1.7765 -0.1306 -0.0672  0.0418  5.5405 
+## 
+## Coefficients:
+##                     Estimate Std. Error t value Pr(&gt;|t|)    
+## (Intercept)        0.0969996  0.0203483   4.767 1.99e-06 ***
+## lag_0_case_rate   -0.0006036  0.0005340  -1.130    0.258    
+## lag_7_case_rate    0.0048879  0.0007233   6.758 1.79e-11 ***
+## lag_14_case_rate   0.0005412  0.0009426   0.574    0.566    
+## lag_0_death_rate   0.1348263  0.0232453   5.800 7.59e-09 ***
+## lag_7_death_rate   0.1235735  0.0236657   5.222 1.94e-07 ***
+## lag_14_death_rate  0.1427953  0.0244890   5.831 6.33e-09 ***
+## ---
+## Signif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1
+## 
+## Residual standard error: 0.4701 on 2177 degrees of freedom
+## Multiple R-squared:  0.1591,	Adjusted R-squared:  0.1568 
+## F-statistic: 68.67 on 6 and 2177 DF,  p-value: &lt; 2.2e-16
+```
+
+---
+class: middle, center
+
+
+Switch to the vignettes:
+
+&lt;https://cmu-delphi.github.io/epipredict&gt;
+    </textarea>
+<style data-target="print-only">@media screen {.remark-slide-container{display:block;}.remark-slide-scaler{box-shadow:none;}}</style>
+<script src="https://remarkjs.com/downloads/remark-latest.min.js"></script>
+<script src="src/macros.js"></script>
+<script>var slideshow = remark.create({
+"highlightStyle": "github",
+"highlightLines": true,
+"ratio": "16:9",
+"countIncrementalSlides": true
+});
+if (window.HTMLWidgets) slideshow.on('afterShowSlide', function (slide) {
+  window.dispatchEvent(new Event('resize'));
+});
+(function(d) {
+  var s = d.createElement("style"), r = d.querySelector(".remark-slide-scaler");
+  if (!r) return;
+  s.type = "text/css"; s.innerHTML = "@page {size: " + r.style.width + " " + r.style.height +"; }";
+  d.head.appendChild(s);
+})(document);
+
+(function(d) {
+  var el = d.getElementsByClassName("remark-slides-area");
+  if (!el) return;
+  var slide, slides = slideshow.getSlides(), els = el[0].children;
+  for (var i = 1; i < slides.length; i++) {
+    slide = slides[i];
+    if (slide.properties.continued === "true" || slide.properties.count === "false") {
+      els[i - 1].className += ' has-continuation';
+    }
+  }
+  var s = d.createElement("style");
+  s.type = "text/css"; s.innerHTML = "@media print { .has-continuation { display: none; } }";
+  d.head.appendChild(s);
+})(document);
+// delete the temporary CSS (for displaying all slides initially) when the user
+// starts to view slides
+(function() {
+  var deleted = false;
+  slideshow.on('beforeShowSlide', function(slide) {
+    if (deleted) return;
+    var sheets = document.styleSheets, node;
+    for (var i = 0; i < sheets.length; i++) {
+      node = sheets[i].ownerNode;
+      if (node.dataset["target"] !== "print-only") continue;
+      node.parentNode.removeChild(node);
+    }
+    deleted = true;
+  });
+})();
+// add `data-at-shortcutkeys` attribute to <body> to resolve conflicts with JAWS
+// screen reader (see PR #262)
+(function(d) {
+  let res = {};
+  d.querySelectorAll('.remark-help-content table tr').forEach(tr => {
+    const t = tr.querySelector('td:nth-child(2)').innerText;
+    tr.querySelectorAll('td:first-child .key').forEach(key => {
+      const k = key.innerText;
+      if (/^[a-z]$/.test(k)) res[k] = t;  // must be a single letter (key)
+    });
+  });
+  d.body.setAttribute('data-at-shortcutkeys', JSON.stringify(res));
+})(document);
+(function() {
+  "use strict"
+  // Replace <script> tags in slides area to make them executable
+  var scripts = document.querySelectorAll(
+    '.remark-slides-area .remark-slide-container script'
+  );
+  if (!scripts.length) return;
+  for (var i = 0; i < scripts.length; i++) {
+    var s = document.createElement('script');
+    var code = document.createTextNode(scripts[i].textContent);
+    s.appendChild(code);
+    var scriptAttrs = scripts[i].attributes;
+    for (var j = 0; j < scriptAttrs.length; j++) {
+      s.setAttribute(scriptAttrs[j].name, scriptAttrs[j].value);
+    }
+    scripts[i].parentElement.replaceChild(s, scripts[i]);
+  }
+})();
+(function() {
+  var links = document.getElementsByTagName('a');
+  for (var i = 0; i < links.length; i++) {
+    if (/^(https?:)?\/\//.test(links[i].getAttribute('href'))) {
+      links[i].target = '_blank';
+    }
+  }
+})();
+// adds .remark-code-has-line-highlighted class to <pre> parent elements
+// of code chunks containing highlighted lines with class .remark-code-line-highlighted
+(function(d) {
+  const hlines = d.querySelectorAll('.remark-code-line-highlighted');
+  const preParents = [];
+  const findPreParent = function(line, p = 0) {
+    if (p > 1) return null; // traverse up no further than grandparent
+    const el = line.parentElement;
+    return el.tagName === "PRE" ? el : findPreParent(el, ++p);
+  };
+
+  for (let line of hlines) {
+    let pre = findPreParent(line);
+    if (pre && !preParents.includes(pre)) preParents.push(pre);
+  }
+  preParents.forEach(p => p.classList.add("remark-code-has-line-highlighted"));
+})(document);</script>
+
+<script>
+slideshow._releaseMath = function(el) {
+  var i, text, code, codes = el.getElementsByTagName('code');
+  for (i = 0; i < codes.length;) {
+    code = codes[i];
+    if (code.parentNode.tagName !== 'PRE' && code.childElementCount === 0) {
+      text = code.textContent;
+      if (/^\\\((.|\s)+\\\)$/.test(text) || /^\\\[(.|\s)+\\\]$/.test(text) ||
+          /^\$\$(.|\s)+\$\$$/.test(text) ||
+          /^\\begin\{([^}]+)\}(.|\s)+\\end\{[^}]+\}$/.test(text)) {
+        code.outerHTML = code.innerHTML;  // remove <code></code>
+        continue;
+      }
+    }
+    i++;
+  }
+};
+slideshow._releaseMath(document);
+</script>
+<!-- dynamically load mathjax for compatibility with self-contained -->
+<script>
+(function () {
+  var script = document.createElement('script');
+  script.type = 'text/javascript';
+  script.src  = 'https://mathjax.rstudio.com/latest/MathJax.js?config=TeX-MML-AM_CHTML';
+  if (location.protocol !== 'file:' && /^https?:/.test(script.src))
+    script.src  = script.src.replace(/^https?:/, '');
+  document.getElementsByTagName('head')[0].appendChild(script);
+})();
+</script>
+  </body>
+</html>

@@ -15,7 +15,7 @@
  *    - xaringan wiki: https://github.com/yihui/xaringan/wiki
  *    - remarkjs wiki: https://github.com/gnab/remark/wiki
  *
- *  Version: 0.4.1
+ *  Version: 0.4.2
  *
  * ------------------------------------------------------- */
 @import url(https://fonts.googleapis.com/css?family=Open+Sans&display=swap);
@@ -43,28 +43,28 @@
   --header-h3-font-size: 1.75rem;
 
   /* Colors */
-  --text-color: #002145;
-  --header-color: #002145;
+  --text-color: #2c365e;
+  --header-color: #2c365e;
   --background-color: #FFFFFF;
-  --link-color: #002145;
-  --text-bold-color: #002145;
+  --link-color: #2c365e;
+  --text-bold-color: #2c365e;
   --code-highlight-color: rgba(255,255,0,0.5);
   --inverse-text-color: #000000;
-  --inverse-background-color: #6495ed;
+  --inverse-background-color: #e98a15;
   --inverse-header-color: #000000;
-  --inverse-link-color: #002145;
-  --title-slide-background-color: #002145;
+  --inverse-link-color: #2c365e;
+  --title-slide-background-color: #2c365e;
   --title-slide-text-color: #FFFFFF;
-  --header-background-color: #002145;
+  --header-background-color: #2c365e;
   --header-background-text-color: #FFFFFF;
-  --primary: #002145;
-  --secondary: #6495ed;
+  --primary: #2c365e;
+  --secondary: #e98a15;
   --white: #FFFFFF;
   --black: #000000;
   --tertiary: #ffa319;
   --fourth_color: #DB0B5B;
-  --light_pri: #CCD2D9;
-  --light_sec: #E0E9FB;
+  --light_pri: #D4D6DE;
+  --light_sec: #FAE7D0;
   --light_ter: #FFECD1;
   --light_fou: #F7CEDE;
 }
@@ -107,10 +107,10 @@ h1, h2, h3 {
 }
 .remark-inline-code {
   font-size: var(--code-inline-font-size);
-  color: #002145;
+  color: #2c365e;
 }
 .remark-slide-number {
-  color: #002145;
+  color: #2c365e;
   opacity: 1;
   font-size: 0.9rem;
 }
@@ -158,10 +158,10 @@ a, a > code {
   float: left;
 }
 .left-column h2, .left-column h3 {
-  color: #00214599;
+  color: #2c365e99;
 }
 .left-column h2:last-of-type, .left-column h3:last-child {
-  color: #002145;
+  color: #2c365e;
 }
 .right-column {
   width: 75%;
@@ -183,7 +183,7 @@ img, video, iframe {
   max-width: 100%;
 }
 blockquote {
-  border-left: solid 5px #6495ed80;
+  border-left: solid 5px #e98a1580;
   padding-left: 1em;
 }
 .remark-slide table {
@@ -197,8 +197,10 @@ blockquote {
 th, td {
   padding: 5px;
 }
-.remark-slide thead, .remark-slide tfoot, .remark-slide tr:nth-child(even) {
-  background: #CCD2D9;
+.remark-slide table:not(.table-unshaded) thead,
+.remark-slide table:not(.table-unshaded) tfoot,
+.remark-slide table:not(.table-unshaded) tr:nth-child(even) {
+  background: #D4D6DE;
 }
 table.dataTable tbody {
   background-color: var(--background-color);
@@ -208,7 +210,7 @@ table.dataTable.display tbody tr.odd {
   background-color: var(--background-color);
 }
 table.dataTable.display tbody tr.even {
-  background-color: #CCD2D9;
+  background-color: #D4D6DE;
 }
 table.dataTable.hover tbody tr:hover, table.dataTable.display tbody tr:hover {
   background-color: rgba(255, 255, 255, 0.5);
